@@ -233,11 +233,26 @@
         });
       });
 
+      // Guess POV axis: axes with values outside [-1, 1] are likely POV hats.
+      // Read raw axes directly from navigator.getGamepads() to avoid toFixed string conversion.
+      function guessPovAxes() {
+        if (!currentGamepad) return [9];
+        var gp = navigator.getGamepads ? navigator.getGamepads()[currentGamepad.id] : null;
+        if (!gp || !gp.axes) return [9];
+        var candidates = [];
+        for (var i = 0; i < gp.axes.length; i++) {
+          var val = gp.axes[i];
+          if (typeof val === 'number' && (val < -1 || val > 1)) {
+            candidates.push(i);
+          }
+        }
+        return candidates.length > 0 ? candidates : [9];
+      }
+
       // Build axis dropdown options dynamically from gamepad.axesCount (raw axes length)
       function refreshAxisOptions() {
         var select = document.getElementById('axis-select');
         if (!select || !currentGamepad) return;
-        var prev = select.value || String(povAxis);
         select.innerHTML = '';
         var count = currentGamepad.axesCount || 0;
         for (var i = 0; i < count; i++) {
@@ -246,12 +261,13 @@
           opt.textContent = 'axes[' + i + ']';
           select.appendChild(opt);
         }
-        // restore previous selection if still valid
-        if (count > parseInt(prev)) {
-          select.value = prev;
+        // Select current povAxis if valid, otherwise pick first guessed candidate
+        if (count > povAxis) {
+          select.value = String(povAxis);
         } else {
-          select.value = '0';
-          povAxis = 0;
+          var guessed = guessPovAxes();
+          povAxis = guessed[0];
+          select.value = String(povAxis);
         }
       }
 
