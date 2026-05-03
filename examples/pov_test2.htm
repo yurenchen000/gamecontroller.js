@@ -78,6 +78,34 @@
         color: #888;
         margin-top: 1rem;
       }
+      .mode-selector {
+        display: flex;
+        margin: 0.5rem auto 0;
+        border: 2px solid #333;
+        border-radius: 4px;
+        overflow: hidden;
+        font-family: 'Press Start 2P', arial, sans-serif;
+      }
+      .mode-btn {
+        background: #ddd;
+        border: none;
+        padding: 0.6rem 1rem;
+        font-size: 0.55rem;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+        color: #333;
+      }
+      .mode-btn.active {
+        background: #333;
+        color: #fff;
+      }
+      .mode-btn:hover:not(.active):not(:disabled) {
+        background: #ccc;
+      }
+      .mode-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
@@ -122,9 +150,14 @@
         </svg>
       </div>
 
-      <p class="oblique-info">
-        Oblique mode: <strong>oblique_as_both</strong><br />
-        Diagonal directions trigger two orthogonal directions.
+      <div class="mode-selector" id="mode-selector">
+        <button class="mode-btn active" data-mode="oblique_as_none">oblique_as_none</button>
+        <button class="mode-btn" data-mode="oblique_as_both">oblique_as_both</button>
+      </div>
+
+      <p class="oblique-info" id="oblique-info">
+        Diagonal directions are ignored.<br />
+        Only up/down/left/right trigger events.
       </p>
 
       <p class="status" id="status">Waiting for gamepad connection...</p>
@@ -134,6 +167,16 @@
 
     <script>
       const povAxis = 9;
+      let currentGamepad = null;
+
+      const modeInfo = {
+        oblique_as_none: {
+          text: 'Diagonal directions are ignored.<br />Only up/down/left/right trigger events.',
+        },
+        oblique_as_both: {
+          text: 'Diagonal directions trigger two orthogonal directions.<br />e.g. up-right triggers both up and right.',
+        }
+      };
 
       function setActive(dir, isActive) {
         const el = document.getElementById('pov-' + dir);
@@ -142,13 +185,32 @@
         }
       }
 
+      function setMode(mode) {
+        if (currentGamepad) {
+          currentGamepad.set('obliqueMode', mode);
+        }
+        document.getElementById('oblique-info').innerHTML = modeInfo[mode].text;
+        document.querySelectorAll('.mode-btn').forEach(function(btn) {
+          btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+      }
+
+      // Mode selector click
+      document.querySelectorAll('.mode-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          setMode(this.dataset.mode);
+        });
+      });
+
       gameControl
         .on('connect', function(gamepad) {
+          currentGamepad = gamepad;
           document.getElementById('status').textContent =
             'Gamepad connected! POV axis: axes[' + povAxis + ']';
 
-          // Set oblique mode
-          gamepad.set('obliqueMode', 'oblique_as_both');
+          // Apply current selected mode
+          var activeMode = document.querySelector('.mode-btn.active').dataset.mode;
+          gamepad.set('obliqueMode', activeMode); //'oblique_as_both', 'oblique_as_none'
 
           // Bind POV direction events
           gamepad.before('pov' + povAxis + '.up',    function() { setActive('up', true); })
@@ -164,6 +226,7 @@
                  .after ('pov' + povAxis + '.right', function() { setActive('right', false); });
         })
         .on('disconnect', function() {
+          currentGamepad = null;
           document.getElementById('status').textContent = 'Gamepad disconnected.';
           ['up','down','left','right'].forEach(function(d) { setActive(d, false); });
         });
