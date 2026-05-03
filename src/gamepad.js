@@ -7,6 +7,7 @@ const gamepad = {
       id: gpad.index,
       buttons: gpad.buttons.length,
       axes: Math.floor(gpad.axes.length / 2),
+      axesCount: gpad.axes.length, //raw axes count
       axeValues: [],
       axeThreshold: [1.0],
       hapticActuator: null,
