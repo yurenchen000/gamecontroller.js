@@ -106,6 +106,30 @@
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .axis-selector {
+        margin: 0.5rem auto 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.65rem;
+      }
+      .axis-selector label {
+        color: #333;
+      }
+      .axis-selector select {
+        font-family: 'Press Start 2P', arial, sans-serif;
+        font-size: 0.6rem;
+        padding: 0.4rem 0.6rem;
+        border: 2px solid #333;
+        border-radius: 4px;
+        background: #ddd;
+        color: #333;
+        cursor: pointer;
+      }
+      .axis-selector select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
@@ -150,6 +174,13 @@
         </svg>
       </div>
 
+      <div class="axis-selector">
+        <label for="axis-select">POV Axis:</label>
+        <select id="axis-select">
+          <option value="0">axes[0]</option>
+        </select>
+      </div>
+
       <div class="mode-selector" id="mode-selector">
         <button class="mode-btn active" data-mode="oblique_as_none">oblique_as_none</button>
         <button class="mode-btn" data-mode="oblique_as_both">oblique_as_both</button>
@@ -166,7 +197,7 @@
     <script src="../dist/gamecontroller.min.js"></script>
 
     <script>
-      const povAxis = 9;
+      let povAxis = 9; // default, will be updated by dropdown
       let currentGamepad = null;
 
       const modeInfo = {
@@ -202,9 +233,56 @@
         });
       });
 
+      // Build axis dropdown options dynamically from gamepad.axesCount (raw axes length)
+      function refreshAxisOptions() {
+        var select = document.getElementById('axis-select');
+        if (!select || !currentGamepad) return;
+        var prev = select.value || String(povAxis);
+        select.innerHTML = '';
+        var count = currentGamepad.axesCount || 0;
+        for (var i = 0; i < count; i++) {
+          var opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = 'axes[' + i + ']';
+          select.appendChild(opt);
+        }
+        // restore previous selection if still valid
+        if (count > parseInt(prev)) {
+          select.value = prev;
+        } else {
+          select.value = '0';
+          povAxis = 0;
+        }
+      }
+
+      // Bind POV events for a given axis (overwrites previous bindings for that axis)
+      function bindPovEvents(gp, axis) {
+        gp.before('pov' + axis + '.up',    function() { setActive('up', true); })
+           .after ('pov' + axis + '.up',    function() { setActive('up', false); })
+           .before('pov' + axis + '.down',  function() { setActive('down', true); })
+           .after ('pov' + axis + '.down',  function() { setActive('down', false); })
+           .before('pov' + axis + '.left',  function() { setActive('left', true); })
+           .after ('pov' + axis + '.left',  function() { setActive('left', false); })
+           .before('pov' + axis + '.right', function() { setActive('right', true); })
+           .after ('pov' + axis + '.right', function() { setActive('right', false); });
+      }
+
+      // When user picks a different axis from dropdown
+      document.getElementById('axis-select').addEventListener('change', function() {
+        povAxis = parseInt(this.value);
+        if (currentGamepad) {
+          // Clear old povAxes and re-bind for new axis
+          currentGamepad.povAxes = [povAxis];
+          bindPovEvents(currentGamepad, povAxis);
+          document.getElementById('status').textContent =
+            'Gamepad connected! POV axis: axes[' + povAxis + ']';
+        }
+      });
+
       gameControl
         .on('connect', function(gamepad) {
           currentGamepad = gamepad;
+          refreshAxisOptions();
           document.getElementById('status').textContent =
             'Gamepad connected! POV axis: axes[' + povAxis + ']';
 
@@ -212,7 +290,7 @@
           var activeMode = document.querySelector('.mode-btn.active').dataset.mode;
           gamepad.set('obliqueMode', activeMode); //'oblique_as_both', 'oblique_as_none'
 
-          // Bind POV direction events
+          // Bind POV direction events (re-bound each cycle to use current povAxis)
           gamepad.before('pov' + povAxis + '.up',    function() { setActive('up', true); })
                  .after ('pov' + povAxis + '.up',    function() { setActive('up', false); })
 
