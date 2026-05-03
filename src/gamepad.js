@@ -15,12 +15,20 @@ const gamepad = {
       mapping: gpad.mapping,
       buttonActions: {},
       axesActions: {},
+      povAxes: [],
+      povActions: {},
+      povState: {},
+      obliqueMode: 'oblique_as_none',
       pressed: {},
       set: function(property, value) {
-        const properties = ['axeThreshold'];
+        const properties = ['axeThreshold', 'obliqueMode'];
         if (properties.indexOf(property) >= 0) {
           if (property === 'axeThreshold' && (!parseFloat(value) || value < 0.0 || value > 1.0)) {
             error(MESSAGES.INVALID_VALUE_NUMBER);
+            return;
+          }
+          if (property === 'obliqueMode' && value !== 'oblique_as_both' && value !== 'oblique_as_none') {
+            error(MESSAGES.INVALID_VALUE);
             return;
           }
           this[property] = value;
@@ -90,9 +98,108 @@ const gamepad = {
               this.triggerDirectionalAction('down', axe, val >= this.axeThreshold[0], x, 1);
               this.triggerDirectionalAction('up', axe, val <= -this.axeThreshold[0], x, 1);
             }
+
+            this.checkPovAxes(gp, modifier);
           }
         }
       },
+
+      checkPovAxes: function(gp, modifier) {
+        for (let i = 0; i < this.povAxes.length; i++) {
+          const povIndex = this.povAxes[i];
+          const povValue = gp.axes[povIndex + modifier];
+
+          if (povValue === undefined) continue;
+
+          const rawDirection = this.povValueToDirection(povValue);
+          const oldDirections = this.povState[povIndex] || [];
+          let newDirections = [];
+
+          if (rawDirection !== 'center') {
+            if (this.obliqueMode === 'oblique_as_both') {
+              newDirections = this.expandObliqueDirection(rawDirection);
+            } else {
+              const mainDirections = ['up', 'down', 'left', 'right'];
+              if (mainDirections.indexOf(rawDirection) >= 0) {
+                newDirections = [rawDirection];
+              }
+            }
+          }
+
+          // 触发 after: 在 oldDirections 但不在 newDirections 中的
+          for (let j = 0; j < oldDirections.length; j++) {
+            if (newDirections.indexOf(oldDirections[j]) === -1) {
+              if (this.povActions[povIndex][oldDirections[j]]) {
+                this.povActions[povIndex][oldDirections[j]].after();
+              }
+            }
+          }
+
+          // 触发 before: 在 newDirections 但不在 oldDirections 中的
+          for (let j = 0; j < newDirections.length; j++) {
+            if (oldDirections.indexOf(newDirections[j]) === -1) {
+              if (this.povActions[povIndex][newDirections[j]]) {
+                this.povActions[povIndex][newDirections[j]].before();
+              }
+            }
+          }
+
+          // 触发 action: newDirections 中所有的
+          for (let j = 0; j < newDirections.length; j++) {
+            if (this.povActions[povIndex][newDirections[j]]) {
+              this.povActions[povIndex][newDirections[j]].action();
+            }
+          }
+
+          this.povState[povIndex] = newDirections;
+        }
+      },
+
+      povValueToDirection: function(value) {
+        if (value >= -1 && value <= 1) {
+          const povValues = [-1, -0.7142857313156128, -0.4285714030265808, -0.1428571343421936, 0.14285719394683838, 0.4285714626312256, 0.7142857313156128, 1];
+          const directions = ['up', 'up-right', 'right', 'down-right', 'down', 'down-left', 'left', 'up-left'];
+
+          let minDiff = Infinity;
+          let closestIndex = 0;
+
+          for (let i = 0; i < povValues.length; i++) {
+            const diff = Math.abs(value - povValues[i]);
+            if (diff < minDiff) {
+              minDiff = diff;
+              closestIndex = i;
+            }
+          }
+
+          return directions[closestIndex];
+        }
+        return 'center';
+      },
+
+      expandObliqueDirection: function(direction) {
+        const mapping = {
+          'up': ['up'],
+          'up-right': ['up', 'right'],
+          'right': ['right'],
+          'down-right': ['down', 'right'],
+          'down': ['down'],
+          'down-left': ['down', 'left'],
+          'left': ['left'],
+          'up-left': ['up', 'left']
+        };
+        return mapping[direction] || [direction];
+      },
+
+      initPovActions: function(povIndex) {
+        this.povActions[povIndex] = {
+          'up': emptyEvents(),
+          'down': emptyEvents(),
+          'left': emptyEvents(),
+          'right': emptyEvents()
+        };
+        this.povState[povIndex] = [];
+      },
+
       associateEvent: function(eventName, callback, type) {
         if (eventName.match(/^button\d+$/)) {
           const buttonId = parseInt(eventName.match(/^button(\d+)$/)[1]);
@@ -137,6 +244,20 @@ const gamepad = {
         } else if (eventName.match(/^(up|down|left|right)$/)) {
           const direction = eventName.match(/^(up|down|left|right)$/)[1];
           this.axesActions[0][direction][type] = callback;
+        } else if (eventName.match(/^pov(\d+)\.(up|down|left|right)$/)) {
+          const matches = eventName.match(/^pov(\d+)\.(up|down|left|right)$/);
+          const povIndex = parseInt(matches[1]);
+          const direction = matches[2];
+
+          if (!this.povActions[povIndex]) {
+            this.initPovActions(povIndex);
+          }
+          if (this.povAxes.indexOf(povIndex) === -1) {
+            this.povAxes.push(povIndex);
+          }
+          if (this.povActions[povIndex] && this.povActions[povIndex][direction]) {
+            this.povActions[povIndex][direction][type] = callback;
+          }
         }
         return this;
       },
