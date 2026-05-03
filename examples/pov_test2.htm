@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>POV Axes Test</title>
+    <meta charset="UTF-8" />
+    <link
+      href="https://fonts.googleapis.com/css?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="examples.css" />
+    <style>
+      html, body {
+        font-family: 'Press Start 2P', arial, sans-serif;
+        font-size: 14px;
+      }
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      h1 {
+        font-size: 1.2rem;
+        text-align: center;
+      }
+      .info {
+        background: #ddd;
+        border-left: 0.25rem solid #333;
+        padding: 0.75rem 1rem;
+        font-size: 0.7rem;
+        line-height: 1.4rem;
+        margin-bottom: 1.5rem;
+      }
+      .dpad-wrap {
+        position: relative;
+        width: 220px;
+        height: 220px;
+        margin: 1rem auto 2rem;
+      }
+      svg.dpad {
+        width: 100%;
+        height: 100%;
+      }
+      .dpad-base {
+        fill: #555;
+        stroke: #444;
+        stroke-width: 2;
+      }
+      .dpad-dir {
+        fill: #888;
+        stroke: #666;
+        stroke-width: 1;
+        transition: fill 0.05s;
+      }
+      .dpad-dir.active {
+        fill: #00cc66;
+        stroke: #00aa55;
+      }
+      .dpad-center {
+        fill: #666;
+      }
+      .dpad-text {
+        font-family: Arial, sans-serif;
+        font-size: 11px;
+        fill: #ccc;
+        text-anchor: middle;
+        dominant-baseline: middle;
+        pointer-events: none;
+      }
+      .oblique-info {
+        font-size: 0.65rem;
+        color: #666;
+        text-align: center;
+        margin-top: 0.5rem;
+        line-height: 1.3rem;
+      }
+      .status {
+        font-size: 0.7rem;
+        color: #888;
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>POV Axes Test</h1>
+
+      <p class="info">
+        Connect a gamepad with a POV/D-Pad axis (e.g. flight stick, wheel).
+        The POV axis is mapped to <code>axes[9]</code> in this example.
+        Press directions on the POV hat to see them highlighted.
+      </p>
+
+      <div class="dpad-wrap">
+        <svg class="dpad" viewBox="0 0 200 200">
+          <!-- Background cross shape -->
+          <!-- Vertical bar -->
+          <rect x="75" y="30" width="50" height="140" rx="6" class="dpad-base" />
+          <!-- Horizontal bar -->
+          <rect x="30" y="75" width="140" height="50" rx="6" class="dpad-base" />
+
+          <!-- Up -->
+          <path d="M85,30 L115,30 L115,50 L105,50 L105,40 L95,40 L95,50 L85,50 Z"
+                id="pov-up" class="dpad-dir" />
+          <!-- Down -->
+          <path d="M85,170 L115,170 L115,150 L105,150 L105,160 L95,160 L95,150 L85,150 Z"
+                id="pov-down" class="dpad-dir" />
+          <!-- Left -->
+          <path d="M30,85 L50,85 L50,95 L40,95 L40,105 L50,105 L50,115 L30,115 Z"
+                id="pov-left" class="dpad-dir" />
+          <!-- Right -->
+          <path d="M170,85 L150,85 L150,95 L160,95 L160,105 L150,105 L150,115 L170,115 Z"
+                id="pov-right" class="dpad-dir" />
+
+          <!-- Center -->
+          <circle cx="100" cy="100" r="18" class="dpad-center" />
+
+          <!-- Labels -->
+          <text x="100" y="42" class="dpad-text">UP</text>
+          <text x="100" y="162" class="dpad-text">DOWN</text>
+          <text x="42" y="103" class="dpad-text">LEFT</text>
+          <text x="158" y="103" class="dpad-text">RIGHT</text>
+        </svg>
+      </div>
+
+      <p class="oblique-info">
+        Oblique mode: <strong>oblique_as_both</strong><br />
+        Diagonal directions trigger two orthogonal directions.
+      </p>
+
+      <p class="status" id="status">Waiting for gamepad connection...</p>
+    </main>
+
+    <script src="../dist/gamecontroller.min.js"></script>
+
+    <script>
+      const povAxis = 9;
+
+      function setActive(dir, isActive) {
+        const el = document.getElementById('pov-' + dir);
+        if (el) {
+          el.classList.toggle('active', isActive);
+        }
+      }
+
+      gameControl
+        .on('connect', function(gamepad) {
+          document.getElementById('status').textContent =
+            'Gamepad connected! POV axis: axes[' + povAxis + ']';
+
+          // Set oblique mode
+          gamepad.set('obliqueMode', 'oblique_as_both');
+
+          // Bind POV direction events
+          gamepad.before('pov' + povAxis + '.up',    function() { setActive('up', true); })
+                 .after ('pov' + povAxis + '.up',    function() { setActive('up', false); })
+
+                 .before('pov' + povAxis + '.down',  function() { setActive('down', true); })
+                 .after ('pov' + povAxis + '.down',  function() { setActive('down', false); })
+
+                 .before('pov' + povAxis + '.left',  function() { setActive('left', true); })
+                 .after ('pov' + povAxis + '.left',  function() { setActive('left', false); })
+
+                 .before('pov' + povAxis + '.right', function() { setActive('right', true); })
+                 .after ('pov' + povAxis + '.right', function() { setActive('right', false); });
+        })
+        .on('disconnect', function() {
+          document.getElementById('status').textContent = 'Gamepad disconnected.';
+          ['up','down','left','right'].forEach(function(d) { setActive(d, false); });
+        });
+    </script>
+  </body>
+</html>
