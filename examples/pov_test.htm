@@ -1,0 +1,60 @@
+
+<html lang="en">
+  <head>
+    <title>pov test</title>
+    <style>
+      svg {
+        display: block;
+        margin: 1rem auto;
+        max-width: 500px;
+        width: 100%;
+      }
+      .active {
+        fill: yellow;
+      }
+      path.active {
+        fill: red;
+      }
+    </style>
+  </head>
+  <body>
+
+<script src="../dist/gamecontroller.min.js"></script>
+
+<script>
+    
+function my_callback(e){
+  console.log('--event:', e)
+}
+function gen_callback(name){
+  return function() {
+    my_callback(name);
+  };
+}
+
+
+
+// 新连接的/已连接的 手柄
+gameControl
+  .on('connect', function(gamepad) {
+    console.log("== onconnect:", gamepad)
+
+    // 设置斜方向模式
+    gamepad.set('obliqueMode', 'oblique_as_both'); // 或 'oblique_as_none'
+
+    gamepad.before('pov9.up',   gen_callback('up.pressed'))
+           .after ('pov9.up',   gen_callback('up.release'));
+
+    gamepad.before('pov9.down', gen_callback('down.pressed'))
+           .after ('pov9.down', gen_callback('down.release'));
+
+    gamepad.before('pov9.left', gen_callback('left.pressed'))
+           .after ('pov9.left', gen_callback('left.release'));
+
+    gamepad.before('pov9.right',gen_callback('right.pressed'))
+           .after ('pov9.right',gen_callback('right.release'));
+});
+
+</script>
+  </body>
+</html>
